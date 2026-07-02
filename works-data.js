@@ -270,6 +270,12 @@ window.portfolioWorks = {
       "url": "https://drive.google.com/file/d/1cKdxxHwhYMVuZ9tQd9p2WT7qbtIH6cKz/view"
     },
     {
+      "brand": "تطبيق غاني",
+      "type": "video",
+      "preview": "https://drive.google.com/file/d/16WWM8bfwtvGxvXXtyBHzleTfV78PsU9i/preview",
+      "url": "https://drive.google.com/file/d/16WWM8bfwtvGxvXXtyBHzleTfV78PsU9i/view"
+    },
+    {
       "brand": "برنامج انفينيتي",
       "type": "folder",
       "url": "https://drive.google.com/drive/folders/1-DZ1HzOATbc-NLQey2cbS88qVVXFAlvY"
