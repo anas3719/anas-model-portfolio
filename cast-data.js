@@ -910,6 +910,20 @@
     speaking: "متحدثة",
     note: "",
   },
+  {
+    id: "abdullah-ibrahim",
+    name: "عبدالله ابراهيم",
+    category: "men",
+    folderUrl: "https://drive.google.com/drive/folders/1Kk8smdZod86yzaWvx8ZmPSeghbJQHadV",
+    photoUrl: "https://drive.google.com/thumbnail?id=1i-oZ_yB_SPlifu4RMjfF0jg9u8A6hQNd&sz=w1000",
+    imageTitle: "IMG-20260703-WA0080.jpg",
+    age: "30",
+    height: "175",
+    weight: "73",
+    nationality: "",
+    speaking: "متحدث",
+    note: "",
+  },
 ];
 
 
