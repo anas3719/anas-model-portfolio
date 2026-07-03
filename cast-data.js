@@ -896,6 +896,20 @@
     speaking: "متحدثة",
     note: "",
   },
+  {
+    id: "sofi",
+    name: "صوفي",
+    category: "women",
+    folderUrl: "https://drive.google.com/drive/folders/1bees9avKUyAzUC-WSi_fSA2hCdfmxbSP",
+    photoUrl: "https://drive.google.com/thumbnail?id=1tS9DHnrSTFad489bkL9co-_NLNp4nWD1&sz=w1000",
+    imageTitle: "IMG-20260703-WA0075.jpg",
+    age: "27",
+    height: "155",
+    weight: "46",
+    nationality: "",
+    speaking: "متحدثة",
+    note: "",
+  },
 ];
 
 
