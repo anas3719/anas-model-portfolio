@@ -212,6 +212,11 @@ window.portfolioWorks = {
       "url": "https://drive.google.com/file/d/1Hm06kTEHzQgti_LES5AUSp6um7xSJ18l/view"
     },
     {
+      "brand": "مدارس الحسن العالمية",
+      "type": "folder",
+      "url": "https://drive.google.com/drive/folders/1db4y4Q8gfiAlzB5tEk7lw79IeXZ1GUbL"
+    },
+    {
       "brand": "سليب لاين",
       "type": "folder",
       "url": "https://drive.google.com/drive/folders/1643Nr9FvYu3LvO-F1pFeyK-MgsslpJN9"
