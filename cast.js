@@ -203,6 +203,10 @@ function getAlwaysFirstOrder(member) {
   return Number.MAX_SAFE_INTEGER;
 }
 
+function getAlwaysLastOrder(member) {
+  return member.category === "women" && member.id === "modhi-abdullah" ? 1 : 0;
+}
+
 function getMembersByCategory(categoryKey) {
   return castMembers
     .map((member, index) => ({ member, index }))
@@ -213,6 +217,13 @@ function getMembersByCategory(categoryKey) {
 
       if (firstAlwaysFirstOrder !== secondAlwaysFirstOrder) {
         return firstAlwaysFirstOrder - secondAlwaysFirstOrder;
+      }
+
+      const firstAlwaysLastOrder = getAlwaysLastOrder(first.member);
+      const secondAlwaysLastOrder = getAlwaysLastOrder(second.member);
+
+      if (firstAlwaysLastOrder !== secondAlwaysLastOrder) {
+        return firstAlwaysLastOrder - secondAlwaysLastOrder;
       }
 
       const firstComplete = hasCompleteDetails(first.member);
