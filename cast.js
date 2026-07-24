@@ -196,8 +196,12 @@ function getAlwaysFirstOrder(member) {
     return 1;
   }
 
-  if (member.category === "women" && member.id === "raghd") {
+  if (member.category === "women" && member.id === "lara") {
     return 2;
+  }
+
+  if (member.category === "women" && member.id === "raghd") {
+    return 3;
   }
 
   return Number.MAX_SAFE_INTEGER;
