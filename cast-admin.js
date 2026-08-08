@@ -27,6 +27,22 @@
     text: "#f4f7ff",
   };
 
+  const officialColorPresets = {
+    cast: {
+      label: "ألوان الكاست",
+      colors: { ...defaultCategoryColors },
+    },
+    photographers: {
+      label: "ألوان المصورين",
+      colors: {
+        start: "#4a3820",
+        end: "#251326",
+        border: "#ffce60",
+        text: "#fff8e8",
+      },
+    },
+  };
+
   const protectedCategoryKeys = new Set([
     "men",
     "women",
@@ -363,6 +379,7 @@
     const row = document.createElement("div");
     row.className = "profile-row";
     row.dataset.profileId = member.id;
+    row.dataset.categoryKey = member.category;
     row.classList.toggle("is-selected", member.id === selectedId);
 
     const openButton = document.createElement("button");
@@ -406,7 +423,7 @@
     dragHandle.type = "button";
     dragHandle.className = "profile-drag-handle";
     dragHandle.disabled = !canSort;
-    dragHandle.title = canSort ? "اسحب لتغيير الترتيب" : "اختر قسمًا واحدًا وامسح البحث لتفعيل الترتيب";
+    dragHandle.title = canSort ? "اسحب لتغيير الترتيب" : "امسح البحث لتفعيل الترتيب";
     dragHandle.setAttribute("aria-label", `تغيير ترتيب ${member.name}`);
     dragHandle.innerHTML = '<i data-lucide="grip-vertical" aria-hidden="true"></i>';
 
@@ -429,16 +446,36 @@
       handle: ".profile-drag-handle",
       forceFallback: true,
       fallbackTolerance: 3,
+      delayOnTouchOnly: true,
+      touchStartThreshold: 4,
+      swapThreshold: 0.65,
       ghostClass: "sortable-ghost",
       chosenClass: "sortable-chosen",
-      onEnd: () => {
-        const categoryKey = elements.categoryFilter.value;
-        const orderedIds = [...elements.profilesList.children]
-          .map((row) => row.dataset.profileId)
-          .filter(Boolean);
-        orderedIds.forEach((id, index) => {
-          const member = members.find((item) => item.id === id && item.category === categoryKey);
-          if (member) member.displayOrder = index + 1;
+      dragClass: "sortable-drag",
+      onMove: (event) => {
+        if (elements.categoryFilter.value !== "all") return true;
+        const draggedCategory = event.dragged?.dataset.categoryKey;
+        const relatedCategory = event.related?.dataset.categoryKey;
+        return !relatedCategory || draggedCategory === relatedCategory;
+      },
+      onEnd: (event) => {
+        if (event.oldIndex === event.newIndex) return;
+
+        const rows = [...elements.profilesList.children].filter((row) => row.dataset.profileId);
+        const selectedCategory = elements.categoryFilter.value;
+        const affectedCategories = selectedCategory === "all"
+          ? [...new Set(rows.map((row) => row.dataset.categoryKey))]
+          : [selectedCategory];
+
+        affectedCategories.forEach((categoryKey) => {
+          rows
+            .filter((row) => row.dataset.categoryKey === categoryKey)
+            .forEach((row, index) => {
+              const member = members.find(
+                (item) => item.id === row.dataset.profileId && item.category === categoryKey,
+              );
+              if (member) member.displayOrder = index + 1;
+            });
         });
         markDataDirty("تم حفظ الترتيب كمسودة");
         renderProfiles();
@@ -450,12 +487,12 @@
   function renderProfiles() {
     const query = elements.profileSearch.value.trim().toLocaleLowerCase("ar");
     const category = elements.categoryFilter.value;
-    const canSort = category !== "all" && !query;
     const filtered = getDisplayOrderedMembers(members).filter((member) => {
       const matchesCategory = category === "all" || member.category === category;
       const matchesQuery = !query || member.name.toLocaleLowerCase("ar").includes(query);
       return matchesCategory && matchesQuery;
     });
+    const canSort = !query && filtered.length > 1;
 
     elements.profilesList.replaceChildren(...filtered.map((member) => createProfileRow(member, canSort)));
     elements.profilesList.classList.toggle("is-sortable", canSort);
@@ -737,6 +774,50 @@
     preview.style.setProperty("--preview-end", category.colors.end);
     preview.style.setProperty("--preview-border", category.colors.border);
     preview.style.setProperty("--preview-text", category.colors.text);
+    syncCategoryPresetState(row, category);
+  }
+
+  function colorsMatch(first, second) {
+    return ["start", "end", "border", "text"].every(
+      (key) => String(first[key]).toLowerCase() === String(second[key]).toLowerCase(),
+    );
+  }
+
+  function syncCategoryPresetState(row, category) {
+    row.querySelectorAll(".category-preset").forEach((button) => {
+      const preset = officialColorPresets[button.dataset.presetKey];
+      const active = preset ? colorsMatch(category.colors, preset.colors) : false;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+  }
+
+  function applyCategoryPreset(row, category, preset) {
+    category.colors = { ...preset.colors };
+    row.querySelectorAll("[data-color-key]").forEach((input) => {
+      input.value = category.colors[input.dataset.colorKey];
+    });
+    updateCategoryPreview(row, category);
+  }
+
+  function createPresetButton(presetKey, preset, category, row) {
+    const button = document.createElement("button");
+    const swatches = document.createElement("span");
+    const label = document.createElement("span");
+    button.type = "button";
+    button.className = "category-preset";
+    button.dataset.presetKey = presetKey;
+    button.title = `تطبيق ${preset.label} الرسمية`;
+    swatches.className = "category-preset__swatches";
+    Object.values(preset.colors).forEach((color) => {
+      const swatch = document.createElement("span");
+      swatch.style.backgroundColor = color;
+      swatches.append(swatch);
+    });
+    label.textContent = preset.label;
+    button.append(swatches, label);
+    button.addEventListener("click", () => applyCategoryPreset(row, category, preset));
+    return button;
   }
 
   function createColorControl(category, key, label, row) {
@@ -804,8 +885,15 @@
     });
     typeField.append(typeCaption, typeSelect);
 
+    const colorSettings = document.createElement("div");
+    const presets = document.createElement("div");
     const colors = document.createElement("div");
+    colorSettings.className = "category-color-settings";
+    presets.className = "category-presets";
     colors.className = "category-colors";
+    Object.entries(officialColorPresets).forEach(([presetKey, preset]) => {
+      presets.append(createPresetButton(presetKey, preset, category, row));
+    });
     const colorsCaption = document.createElement("span");
     colorsCaption.textContent = "ألوان البلوك والبطاقات";
     colors.append(
@@ -815,6 +903,7 @@
       createColorControl(category, "border", "الإطار", row),
       createColorControl(category, "text", "النص", row),
     );
+    colorSettings.append(presets, colors);
 
     const removeButton = document.createElement("button");
     const hasProfiles = members.some((member) => member.category === category.key);
@@ -834,7 +923,7 @@
       renderCategoryEditor();
     });
 
-    row.append(dragHandle, preview, nameField, typeField, colors, removeButton);
+    row.append(dragHandle, preview, nameField, typeField, colorSettings, removeButton);
     updateCategoryPreview(row, category);
     return row;
   }
@@ -851,8 +940,12 @@
       handle: ".category-drag-handle",
       forceFallback: true,
       fallbackTolerance: 3,
+      delayOnTouchOnly: true,
+      touchStartThreshold: 4,
+      swapThreshold: 0.65,
       ghostClass: "sortable-ghost",
       chosenClass: "sortable-chosen",
+      dragClass: "sortable-drag",
       onEnd: () => {
         const order = [...elements.categoriesList.children].map((row) => row.dataset.categoryKey);
         categoryDraft.sort((first, second) => order.indexOf(first.key) - order.indexOf(second.key));
