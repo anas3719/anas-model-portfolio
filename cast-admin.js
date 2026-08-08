@@ -7,6 +7,9 @@
     branch: "main",
   };
 
+  const githubTokenStorageKey = "cast-admin-github-token";
+  const adminUnlockStorageKey = "cast-admin-unlocked-hash";
+
   const castPagePaths = [
     "cast.html",
     "cast-category.html",
@@ -74,6 +77,7 @@
   const elements = {
     syncStatus: document.querySelector("#sync-status"),
     reloadData: document.querySelector("#reload-data"),
+    securitySettings: document.querySelector("#security-settings"),
     githubConnect: document.querySelector("#github-connect"),
     publishChanges: document.querySelector("#publish-changes"),
     profileSearch: document.querySelector("#profile-search"),
@@ -104,12 +108,27 @@
     profileNote: document.querySelector("#profile-note"),
     deleteProfile: document.querySelector("#delete-profile"),
     cancelEdit: document.querySelector("#cancel-edit"),
+    adminLockDialog: document.querySelector("#admin-lock-dialog"),
+    adminLockForm: document.querySelector("#admin-lock-form"),
+    adminPassword: document.querySelector("#admin-password"),
+    rememberAdminDevice: document.querySelector("#remember-admin-device"),
+    adminLockError: document.querySelector("#admin-lock-error"),
+    unlockAdmin: document.querySelector("#unlock-admin"),
+    securityDialog: document.querySelector("#security-dialog"),
+    securityForm: document.querySelector("#security-form"),
+    newAdminPassword: document.querySelector("#new-admin-password"),
+    confirmAdminPassword: document.querySelector("#confirm-admin-password"),
+    securityError: document.querySelector("#security-error"),
+    removeAdminPassword: document.querySelector("#remove-admin-password"),
+    closeSecurityDialog: document.querySelector("#close-security-dialog"),
+    cancelSecurity: document.querySelector("#cancel-security"),
     githubDialog: document.querySelector("#github-dialog"),
     githubForm: document.querySelector("#github-form"),
     githubToken: document.querySelector("#github-token"),
     rememberToken: document.querySelector("#remember-token"),
     githubError: document.querySelector("#github-error"),
     confirmGithub: document.querySelector("#confirm-github"),
+    disconnectGithub: document.querySelector("#disconnect-github"),
     closeGithubDialog: document.querySelector("#close-github-dialog"),
     cancelGithub: document.querySelector("#cancel-github"),
     toggleToken: document.querySelector("#toggle-token"),
@@ -137,7 +156,90 @@
   let baseDataSource = "";
   let basePhotographersSource = "";
   let baseCategoriesSource = "";
-  let githubToken = sessionStorage.getItem("cast-admin-github-token") || "";
+  let baseAuthSource = "";
+  function loadStoredGithubToken() {
+    try {
+      const persistentToken = localStorage.getItem(githubTokenStorageKey);
+      if (persistentToken) return persistentToken;
+
+      const legacySessionToken = sessionStorage.getItem(githubTokenStorageKey);
+      if (legacySessionToken) {
+        localStorage.setItem(githubTokenStorageKey, legacySessionToken);
+        sessionStorage.removeItem(githubTokenStorageKey);
+        return legacySessionToken;
+      }
+    } catch (error) {
+      return "";
+    }
+    return "";
+  }
+
+  function storeGithubToken(token, rememberOnDevice) {
+    try {
+      if (rememberOnDevice) {
+        localStorage.setItem(githubTokenStorageKey, token);
+        sessionStorage.removeItem(githubTokenStorageKey);
+      } else {
+        sessionStorage.setItem(githubTokenStorageKey, token);
+        localStorage.removeItem(githubTokenStorageKey);
+      }
+    } catch (error) {
+      sessionStorage.setItem(githubTokenStorageKey, token);
+    }
+  }
+
+  function clearStoredGithubToken() {
+    try {
+      localStorage.removeItem(githubTokenStorageKey);
+      sessionStorage.removeItem(githubTokenStorageKey);
+    } catch (error) {
+      // The in-memory connection still clears when browser storage is unavailable.
+    }
+  }
+
+  function normalizeAdminAuth(value) {
+    const source = value && typeof value === "object" ? value : {};
+    return {
+      salt: String(source.salt || "9e7ad6d78407c3c2a8bbf5c473a176f4"),
+      passwordHash: String(source.passwordHash || ""),
+    };
+  }
+
+  function readStoredAdminUnlock() {
+    try {
+      return localStorage.getItem(adminUnlockStorageKey)
+        || sessionStorage.getItem(adminUnlockStorageKey)
+        || "";
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function storeAdminUnlock(passwordHash, rememberOnDevice) {
+    try {
+      if (rememberOnDevice) {
+        localStorage.setItem(adminUnlockStorageKey, passwordHash);
+        sessionStorage.removeItem(adminUnlockStorageKey);
+      } else {
+        sessionStorage.setItem(adminUnlockStorageKey, passwordHash);
+        localStorage.removeItem(adminUnlockStorageKey);
+      }
+    } catch (error) {
+      sessionStorage.setItem(adminUnlockStorageKey, passwordHash);
+    }
+  }
+
+  function clearStoredAdminUnlock() {
+    try {
+      localStorage.removeItem(adminUnlockStorageKey);
+      sessionStorage.removeItem(adminUnlockStorageKey);
+    } catch (error) {
+      // The lock still applies to future page loads when storage is unavailable.
+    }
+  }
+
+  let authConfig = normalizeAdminAuth(window.castAdminAuth);
+  let githubToken = loadStoredGithubToken();
   let publishAfterConnection = false;
   let toastTimer = null;
   let profileSortable = null;
@@ -767,6 +869,10 @@
     return `window.castCategories = [\n${blocks.join(",\n")}\n];\n`;
   }
 
+  function serializeAdminAuth(value) {
+    return `window.castAdminAuth = {\n  salt: ${JSON.stringify(value.salt)},\n  passwordHash: ${JSON.stringify(value.passwordHash)},\n};\n`;
+  }
+
   function updateCategoryPreview(row, category) {
     const preview = row.querySelector(".category-preview");
     preview.textContent = category.label || "قسم جديد";
@@ -1083,6 +1189,96 @@
     script.remove();
   }
 
+  function isAdminUnlocked() {
+    return !authConfig.passwordHash || readStoredAdminUnlock() === authConfig.passwordHash;
+  }
+
+  async function hashAdminPassword(password) {
+    const bytes = new TextEncoder().encode(`${authConfig.salt}:${password}`);
+    const digest = await window.crypto.subtle.digest("SHA-256", bytes);
+    return [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+  }
+
+  function showAdminLock() {
+    document.body.classList.add("is-admin-locked");
+    elements.adminLockError.hidden = true;
+    elements.adminLockError.textContent = "";
+    elements.adminPassword.value = "";
+    if (!elements.adminLockDialog.open) elements.adminLockDialog.showModal();
+    window.requestAnimationFrame(() => elements.adminPassword.focus());
+  }
+
+  async function unlockAdminAccess(event) {
+    event.preventDefault();
+    const password = elements.adminPassword.value;
+    if (!password) return;
+
+    elements.unlockAdmin.disabled = true;
+    elements.adminLockError.hidden = true;
+    try {
+      const passwordHash = await hashAdminPassword(password);
+      if (passwordHash !== authConfig.passwordHash) {
+        throw new Error("كلمة المرور غير صحيحة");
+      }
+      storeAdminUnlock(passwordHash, elements.rememberAdminDevice.checked);
+      document.body.classList.remove("is-admin-locked");
+      elements.adminLockDialog.close();
+      elements.adminPassword.value = "";
+      await loadData();
+    } catch (error) {
+      elements.adminLockError.textContent = error.message;
+      elements.adminLockError.hidden = false;
+    } finally {
+      elements.unlockAdmin.disabled = false;
+    }
+  }
+
+  function openSecuritySettings() {
+    elements.securityError.hidden = true;
+    elements.securityError.textContent = "";
+    elements.newAdminPassword.value = "";
+    elements.confirmAdminPassword.value = "";
+    elements.removeAdminPassword.hidden = !authConfig.passwordHash;
+    elements.securityDialog.showModal();
+    elements.newAdminPassword.focus();
+  }
+
+  async function saveSecuritySettings(event) {
+    event.preventDefault();
+    const password = elements.newAdminPassword.value;
+    const confirmation = elements.confirmAdminPassword.value;
+    elements.securityError.hidden = true;
+
+    if (password.length < 6) {
+      elements.securityError.textContent = "استخدم كلمة مرور من 6 أحرف أو أرقام على الأقل";
+      elements.securityError.hidden = false;
+      return;
+    }
+    if (password !== confirmation) {
+      elements.securityError.textContent = "تأكيد كلمة المرور غير مطابق";
+      elements.securityError.hidden = false;
+      return;
+    }
+
+    authConfig.passwordHash = await hashAdminPassword(password);
+    storeAdminUnlock(authConfig.passwordHash, true);
+    elements.securityDialog.close();
+    elements.newAdminPassword.value = "";
+    elements.confirmAdminPassword.value = "";
+    markDataDirty("تم حفظ حماية اللوحة كمسودة");
+    showToast("تم حفظ كلمة المرور. اضغط نشر التغييرات لتفعيلها على الأجهزة الأخرى", "success");
+  }
+
+  function removeAdminPassword() {
+    authConfig.passwordHash = "";
+    clearStoredAdminUnlock();
+    elements.securityDialog.close();
+    markDataDirty("تمت إزالة حماية اللوحة كمسودة");
+    showToast("اضغط نشر التغييرات لإزالة كلمة المرور", "success");
+  }
+
   async function loadData() {
     if (dataDirty && !window.confirm("سيتم تجاهل التغييرات غير المنشورة. هل تريد المتابعة؟")) {
       return;
@@ -1091,7 +1287,7 @@
     setBusy(true);
     setSyncStatus("جاري تحميل البيانات");
     try {
-      [baseDataSource, basePhotographersSource, baseCategoriesSource] = await Promise.all([
+      [baseDataSource, basePhotographersSource, baseCategoriesSource, baseAuthSource] = await Promise.all([
         fetchGithubRaw("cast-data.js"),
         fetchGithubRaw("photographers-data.js"),
         fetchGithubRaw("cast-categories.js").catch((error) => {
@@ -1100,16 +1296,23 @@
           }
           throw error;
         }),
+        fetchGithubRaw("cast-admin-auth.js").catch(() => serializeAdminAuth(authConfig)),
       ]);
       await loadSourceIntoWindow(baseDataSource);
       await loadSourceIntoWindow(basePhotographersSource);
       await loadSourceIntoWindow(baseCategoriesSource);
+      await loadSourceIntoWindow(baseAuthSource);
       if (
         !Array.isArray(window.castMembers)
         || !Array.isArray(window.photographers)
         || !Array.isArray(window.castCategories)
       ) {
         throw new Error("ملفات بيانات البروفايلات غير صالحة");
+      }
+      authConfig = normalizeAdminAuth(window.castAdminAuth);
+      if (!isAdminUnlocked()) {
+        showAdminLock();
+        return;
       }
       categoryDefinitions = normalizeCategoryDefinitions(cloneMembers(window.castCategories));
       syncCategoryOptions();
@@ -1139,6 +1342,9 @@
     const text = elements.githubConnect.querySelector("span");
     text.textContent = githubToken ? "GitHub متصل" : "اتصال GitHub";
     elements.githubConnect.classList.toggle("is-connected", Boolean(githubToken));
+    elements.githubConnect.title = githubToken
+      ? "الاتصال محفوظ ويمكنك النشر مباشرة"
+      : "اتصال GitHub للنشر";
   }
 
   function openGithubDialog(shouldPublish = false) {
@@ -1146,6 +1352,7 @@
     elements.githubError.hidden = true;
     elements.githubError.textContent = "";
     elements.githubToken.value = githubToken;
+    elements.disconnectGithub.hidden = !githubToken;
     elements.githubDialog.showModal();
     elements.githubToken.focus();
   }
@@ -1161,14 +1368,15 @@
     elements.githubError.hidden = true;
     try {
       await githubRequest(`/repos/${repository.owner}/${repository.name}`);
-      if (elements.rememberToken.checked) {
-        sessionStorage.setItem("cast-admin-github-token", githubToken);
-      } else {
-        sessionStorage.removeItem("cast-admin-github-token");
-      }
+      storeGithubToken(githubToken, elements.rememberToken.checked);
       updateConnectionButton();
       elements.githubDialog.close();
-      showToast("تم الاتصال بـ GitHub", "success");
+      showToast(
+        elements.rememberToken.checked
+          ? "تم حفظ اتصال GitHub على هذا الجهاز"
+          : "تم الاتصال بـ GitHub حتى إغلاق التبويب",
+        "success",
+      );
       if (publishAfterConnection) await publishChanges();
     } catch (error) {
       githubToken = previousToken;
@@ -1178,6 +1386,15 @@
       elements.confirmGithub.disabled = false;
       publishAfterConnection = false;
     }
+  }
+
+  function disconnectGithub() {
+    githubToken = "";
+    clearStoredGithubToken();
+    elements.githubToken.value = "";
+    elements.githubDialog.close();
+    updateConnectionButton();
+    showToast("تم فصل اتصال GitHub من هذا الجهاز", "success");
   }
 
   function createVersion() {
@@ -1208,24 +1425,28 @@
     expectedSource,
     expectedPhotographersSource,
     expectedCategoriesSource,
+    expectedAuthSource,
     commitSha,
   ) {
     for (let attempt = 0; attempt < 30; attempt += 1) {
       try {
-        const [castResponse, photographersResponse, categoriesResponse] = await Promise.all([
+        const [castResponse, photographersResponse, categoriesResponse, authResponse] = await Promise.all([
           fetch(`cast-data.js?admin=${commitSha}-${attempt}`, { cache: "no-store" }),
           fetch(`photographers-data.js?admin=${commitSha}-${attempt}`, { cache: "no-store" }),
           fetch(`cast-categories.js?admin=${commitSha}-${attempt}`, { cache: "no-store" }),
+          fetch(`cast-admin-auth.js?admin=${commitSha}-${attempt}`, { cache: "no-store" }),
         ]);
-        const [source, photographersSource, categoriesSource] = await Promise.all([
+        const [source, photographersSource, categoriesSource, authSource] = await Promise.all([
           castResponse.text(),
           photographersResponse.text(),
           categoriesResponse.text(),
+          authResponse.text(),
         ]);
         if (
           source === expectedSource
           && photographersSource === expectedPhotographersSource
           && categoriesSource === expectedCategoriesSource
+          && authSource === expectedAuthSource
         ) {
           return true;
         }
@@ -1251,15 +1472,17 @@
     setBusy(true);
     setSyncStatus("جاري تجهيز النشر");
     try {
-      const [remoteDataSource, remotePhotographersSource, remoteCategoriesSource] = await Promise.all([
+      const [remoteDataSource, remotePhotographersSource, remoteCategoriesSource, remoteAuthSource] = await Promise.all([
         fetchGithubRaw("cast-data.js"),
         fetchGithubRaw("photographers-data.js"),
         fetchGithubRaw("cast-categories.js"),
+        fetchGithubRaw("cast-admin-auth.js"),
       ]);
       if (
         remoteDataSource !== baseDataSource
         || remotePhotographersSource !== basePhotographersSource
         || remoteCategoriesSource !== baseCategoriesSource
+        || remoteAuthSource !== baseAuthSource
       ) {
         throw new Error("تغيرت بيانات الموقع منذ فتح اللوحة. اضغط تحديث البيانات ثم أعد تعديلك");
       }
@@ -1276,6 +1499,7 @@
         members.filter((member) => photographerCategoryKeys.has(member.category)),
       );
       const nextCategoriesSource = serializeCategories(categoryDefinitions);
+      const nextAuthSource = serializeAdminAuth(authConfig);
       const version = createVersion();
       const ref = await githubRequest(
         `/repos/${repository.owner}/${repository.name}/git/ref/heads/${repository.branch}`,
@@ -1299,12 +1523,21 @@
           ),
         })),
       );
+      const adminHtmlSource = {
+        path: "cast-admin.html",
+        content: (await fetchGithubRaw("cast-admin.html")).replace(
+          /cast-admin-auth\.js\?v=[^"']+/g,
+          `cast-admin-auth.js?v=${version}`,
+        ),
+      };
 
       setSyncStatus("جاري رفع التغييرات");
       const files = [
         { path: "cast-data.js", content: nextDataSource },
         { path: "photographers-data.js", content: nextPhotographersSource },
         { path: "cast-categories.js", content: nextCategoriesSource },
+        { path: "cast-admin-auth.js", content: nextAuthSource },
+        adminHtmlSource,
         ...htmlSources,
         ...photographerHtmlSources,
       ];
@@ -1353,6 +1586,7 @@
       baseDataSource = nextDataSource;
       basePhotographersSource = nextPhotographersSource;
       baseCategoriesSource = nextCategoriesSource;
+      baseAuthSource = nextAuthSource;
       dataDirty = false;
       elements.publishChanges.disabled = true;
       setSyncStatus("جاري نشر الموقع");
@@ -1360,6 +1594,7 @@
         nextDataSource,
         nextPhotographersSource,
         nextCategoriesSource,
+        nextAuthSource,
         commit.sha,
       );
       if (deployed) {
@@ -1374,7 +1609,7 @@
       showToast(error.message, "error");
       if (/رمز GitHub|صلاحية/.test(error.message)) {
         githubToken = "";
-        sessionStorage.removeItem("cast-admin-github-token");
+        clearStoredGithubToken();
         updateConnectionButton();
       }
     } finally {
@@ -1420,9 +1655,17 @@
   elements.confirmDelete.addEventListener("click", confirmDelete);
   elements.cancelDelete.addEventListener("click", () => elements.deleteDialog.close());
   elements.reloadData.addEventListener("click", loadData);
+  elements.securitySettings.addEventListener("click", openSecuritySettings);
+  elements.securityForm.addEventListener("submit", saveSecuritySettings);
+  elements.removeAdminPassword.addEventListener("click", removeAdminPassword);
+  elements.closeSecurityDialog.addEventListener("click", () => elements.securityDialog.close());
+  elements.cancelSecurity.addEventListener("click", () => elements.securityDialog.close());
+  elements.adminLockForm.addEventListener("submit", unlockAdminAccess);
+  elements.adminLockDialog.addEventListener("cancel", (event) => event.preventDefault());
   elements.publishChanges.addEventListener("click", publishChanges);
   elements.githubConnect.addEventListener("click", () => openGithubDialog(false));
   elements.githubForm.addEventListener("submit", connectGithub);
+  elements.disconnectGithub.addEventListener("click", disconnectGithub);
   elements.closeGithubDialog.addEventListener("click", () => elements.githubDialog.close());
   elements.cancelGithub.addEventListener("click", () => elements.githubDialog.close());
   elements.toggleToken.addEventListener("click", () => {
@@ -1439,7 +1682,15 @@
     event.returnValue = "";
   });
 
-  initializeIcons();
-  updateConnectionButton();
-  loadData();
+  async function initializeAdmin() {
+    initializeIcons();
+    updateConnectionButton();
+    if (isAdminUnlocked()) {
+      await loadData();
+    } else {
+      showAdminLock();
+    }
+  }
+
+  initializeAdmin();
 })();

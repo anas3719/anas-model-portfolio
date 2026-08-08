@@ -12,7 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="cast-admin.css?v=20260808-4" />
+    <link rel="stylesheet" href="cast-admin.css?v=20260808-7" />
   </head>
   <body>
     <header class="admin-header">
@@ -29,6 +29,9 @@
       <div class="header-actions">
         <button id="reload-data" class="icon-button" type="button" title="تحديث البيانات" aria-label="تحديث البيانات">
           <i data-lucide="refresh-cw" aria-hidden="true"></i>
+        </button>
+        <button id="security-settings" class="icon-button" type="button" title="حماية لوحة الإدارة" aria-label="حماية لوحة الإدارة">
+          <i data-lucide="shield-check" aria-hidden="true"></i>
         </button>
         <button id="github-connect" class="button button-secondary" type="button">
           <i data-lucide="key-round" aria-hidden="true"></i>
@@ -201,6 +204,75 @@
       </section>
     </main>
 
+    <dialog id="admin-lock-dialog" class="admin-dialog admin-lock-dialog">
+      <form id="admin-lock-form" method="dialog">
+        <div class="lock-dialog-heading">
+          <span class="lock-dialog-icon"><i data-lucide="lock-keyhole" aria-hidden="true"></i></span>
+          <div>
+            <h2>لوحة الإدارة محمية</h2>
+            <p>أدخل كلمة المرور للمتابعة.</p>
+          </div>
+        </div>
+
+        <label class="field field-full">
+          <span>كلمة المرور</span>
+          <input id="admin-password" type="password" autocomplete="current-password" required />
+        </label>
+
+        <label class="session-option">
+          <input id="remember-admin-device" type="checkbox" checked />
+          <span>تذكر هذا الجهاز وعدم طلب كلمة المرور مرة أخرى</span>
+        </label>
+
+        <div id="admin-lock-error" class="dialog-error" role="alert" hidden></div>
+
+        <div class="dialog-actions">
+          <button id="unlock-admin" class="button button-primary" type="submit">
+            <i data-lucide="log-in" aria-hidden="true"></i>
+            <span>دخول</span>
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="security-dialog" class="admin-dialog">
+      <form id="security-form" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <h2>حماية لوحة الإدارة</h2>
+            <p>عيّن كلمة مرور تُطلب على أي جهاز أو متصفح جديد.</p>
+          </div>
+          <button id="close-security-dialog" class="icon-button" type="button" aria-label="إغلاق">
+            <i data-lucide="x" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <label class="field field-full">
+          <span>كلمة المرور الجديدة</span>
+          <input id="new-admin-password" type="password" minlength="6" autocomplete="new-password" required />
+        </label>
+
+        <label class="field field-full">
+          <span>تأكيد كلمة المرور</span>
+          <input id="confirm-admin-password" type="password" minlength="6" autocomplete="new-password" required />
+        </label>
+
+        <div id="security-error" class="dialog-error" role="alert" hidden></div>
+
+        <div class="dialog-actions">
+          <button id="remove-admin-password" class="button button-danger" type="button" hidden>
+            <i data-lucide="shield-off" aria-hidden="true"></i>
+            <span>إزالة الحماية</span>
+          </button>
+          <button id="cancel-security" class="button button-ghost" type="button">إلغاء</button>
+          <button class="button button-primary" type="submit">
+            <i data-lucide="save" aria-hidden="true"></i>
+            <span>حفظ كلمة المرور</span>
+          </button>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="github-dialog" class="admin-dialog">
       <form id="github-form" method="dialog">
         <div class="dialog-heading">
@@ -225,7 +297,7 @@
 
         <label class="session-option">
           <input id="remember-token" type="checkbox" checked />
-          <span>الاحتفاظ بالاتصال حتى إغلاق التبويب</span>
+          <span>حفظ الاتصال على هذا الجهاز الشخصي للنشر مباشرة</span>
         </label>
 
         <a
@@ -241,6 +313,10 @@
         <div id="github-error" class="dialog-error" role="alert" hidden></div>
 
         <div class="dialog-actions">
+          <button id="disconnect-github" class="button button-danger" type="button" hidden>
+            <i data-lucide="unplug" aria-hidden="true"></i>
+            <span>فصل الاتصال</span>
+          </button>
           <button id="cancel-github" class="button button-ghost" type="button">إلغاء</button>
           <button id="confirm-github" class="button button-primary" type="submit">
             <i data-lucide="plug" aria-hidden="true"></i>
@@ -297,7 +373,8 @@
 
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
-    <script src="cast-categories.js?v=20260808-4"></script>
-    <script src="cast-admin.js?v=20260808-4"></script>
+    <script src="cast-categories.js?v=20260808-7"></script>
+    <script src="cast-admin-auth.js?v=20260808-7"></script>
+    <script src="cast-admin.js?v=20260808-7"></script>
   </body>
 </html>

@@ -160,6 +160,11 @@ button {
   gap: 10px;
 }
 
+body.is-admin-locked .admin-header,
+body.is-admin-locked .admin-main {
+  visibility: hidden;
+}
+
 .button,
 .icon-button {
   display: inline-flex;
@@ -708,6 +713,46 @@ textarea:focus-visible,
   padding: 24px;
 }
 
+.admin-lock-dialog {
+  width: min(92vw, 430px);
+}
+
+.lock-dialog-heading {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 22px;
+}
+
+.lock-dialog-heading h2 {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: 0;
+}
+
+.lock-dialog-heading p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.lock-dialog-icon {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  border: 1px solid rgba(31, 200, 187, 0.45);
+  border-radius: 6px;
+  background: rgba(31, 200, 187, 0.09);
+  color: var(--accent);
+}
+
+.lock-dialog-icon svg {
+  width: 23px;
+  height: 23px;
+}
+
 .dialog-heading {
   justify-content: space-between;
   gap: 18px;
@@ -1068,7 +1113,7 @@ body.is-busy textarea {
 
   .header-actions {
     display: grid;
-    grid-template-columns: 44px 1fr 1fr;
+    grid-template-columns: 44px 44px 1fr 1fr;
   }
 
   .header-actions .button {
