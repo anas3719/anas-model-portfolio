@@ -9,6 +9,7 @@
 
   const castPagePaths = [
     "cast.html",
+    "cast-category.html",
     "cast-men.html",
     "cast-women.html",
     "cast-boys.html",
@@ -19,15 +20,22 @@
 
   const photographerPagePaths = ["photographers.html"];
 
-  const categories = {
-    men: "شباب",
-    women: "بنات",
-    boys: "أطفال أولاد",
-    girls: "أطفال بنات",
-    seniorMen: "كبار سن رجال",
-    seniorWomen: "كبار سن سيدات",
-    photographers: "مصورين",
+  const defaultCategoryColors = {
+    start: "#17313a",
+    end: "#111427",
+    border: "#19f6ff",
+    text: "#f4f7ff",
   };
+
+  const protectedCategoryKeys = new Set([
+    "men",
+    "women",
+    "boys",
+    "girls",
+    "seniorMen",
+    "seniorWomen",
+    "photographers",
+  ]);
 
   const propertyOrder = [
     "id",
@@ -41,6 +49,7 @@
     "weight",
     "nationality",
     "speaking",
+    "displayOrder",
     "pinnedOrder",
     "completedOrder",
     "note",
@@ -57,6 +66,7 @@
     profilesList: document.querySelector("#profiles-list"),
     emptyList: document.querySelector("#empty-list"),
     addProfile: document.querySelector("#add-profile"),
+    manageCategories: document.querySelector("#manage-categories"),
     emptyAddProfile: document.querySelector("#empty-add-profile"),
     editorEmpty: document.querySelector("#editor-empty"),
     editorPanel: document.querySelector(".editor-panel"),
@@ -91,19 +101,31 @@
     deleteProfileName: document.querySelector("#delete-profile-name"),
     cancelDelete: document.querySelector("#cancel-delete"),
     confirmDelete: document.querySelector("#confirm-delete"),
+    categoriesDialog: document.querySelector("#categories-dialog"),
+    categoriesForm: document.querySelector("#categories-form"),
+    categoriesList: document.querySelector("#categories-list"),
+    categoriesError: document.querySelector("#categories-error"),
+    addCategory: document.querySelector("#add-category"),
+    closeCategoriesDialog: document.querySelector("#close-categories-dialog"),
+    cancelCategories: document.querySelector("#cancel-categories"),
     toast: document.querySelector("#toast"),
   };
 
   let members = [];
+  let categoryDefinitions = [];
+  let categoryDraft = [];
   let selectedId = null;
   let isNewProfile = false;
   let dataDirty = false;
   let formDirty = false;
   let baseDataSource = "";
   let basePhotographersSource = "";
+  let baseCategoriesSource = "";
   let githubToken = sessionStorage.getItem("cast-admin-github-token") || "";
   let publishAfterConnection = false;
   let toastTimer = null;
+  let profileSortable = null;
+  let categorySortable = null;
 
   function initializeIcons() {
     if (window.lucide) {
@@ -143,8 +165,55 @@
     return JSON.parse(JSON.stringify(value));
   }
 
+  function normalizeCategoryDefinitions(value) {
+    return (Array.isArray(value) ? value : [])
+      .filter((category) => category && category.key && category.label)
+      .map((category) => ({
+        source: "cast",
+        profileType: "full",
+        selectable: true,
+        group: category.label,
+        href: `cast-category.html?category=${encodeURIComponent(category.key)}`,
+        ...category,
+        colors: { ...defaultCategoryColors, ...(category.colors || {}) },
+      }));
+  }
+
+  function getCategoryDefinition(key) {
+    return categoryDefinitions.find((category) => category.key === key);
+  }
+
+  function getCategoryLabel(key) {
+    return getCategoryDefinition(key)?.label || key;
+  }
+
+  function isSimpleCategory(key) {
+    return getCategoryDefinition(key)?.profileType === "simple";
+  }
+
+  function syncCategoryOptions() {
+    const filterValue = elements.categoryFilter.value || "all";
+    const formValue = elements.profileCategory.value;
+    const filterOptions = [new Option("كل الأقسام", "all")];
+    const formOptions = [];
+
+    categoryDefinitions.forEach((category) => {
+      filterOptions.push(new Option(category.label, category.key));
+      formOptions.push(new Option(category.label, category.key));
+    });
+
+    elements.categoryFilter.replaceChildren(...filterOptions);
+    elements.profileCategory.replaceChildren(...formOptions);
+    elements.categoryFilter.value = categoryDefinitions.some((category) => category.key === filterValue)
+      ? filterValue
+      : "all";
+    elements.profileCategory.value = categoryDefinitions.some((category) => category.key === formValue)
+      ? formValue
+      : categoryDefinitions[0]?.key || "";
+  }
+
   function isComplete(member) {
-    if (member.category === "photographers") {
+    if (isSimpleCategory(member.category)) {
       return ["name", "folderUrl", "photoUrl"].every((key) => String(member[key] || "").trim());
     }
 
@@ -172,12 +241,29 @@
   }
 
   function getDisplayOrderedMembers(sourceMembers) {
+    const categoryOrder = new Map(categoryDefinitions.map((category, index) => [category.key, index]));
+    const manualCategories = new Set(
+      sourceMembers
+        .filter((member) => hasNumericOrder(member.displayOrder))
+        .map((member) => member.category),
+    );
+
     return sourceMembers
       .map((member, index) => ({ member, index }))
       .sort((first, second) => {
-        const categoryDifference = Object.keys(categories).indexOf(first.member.category)
-          - Object.keys(categories).indexOf(second.member.category);
+        const categoryDifference = (categoryOrder.get(first.member.category) ?? Number.MAX_SAFE_INTEGER)
+          - (categoryOrder.get(second.member.category) ?? Number.MAX_SAFE_INTEGER);
         if (categoryDifference) return categoryDifference;
+
+        if (manualCategories.has(first.member.category)) {
+          const firstOrder = hasNumericOrder(first.member.displayOrder)
+            ? Number(first.member.displayOrder)
+            : Number.MAX_SAFE_INTEGER + first.index;
+          const secondOrder = hasNumericOrder(second.member.displayOrder)
+            ? Number(second.member.displayOrder)
+            : Number.MAX_SAFE_INTEGER + second.index;
+          return firstOrder - secondOrder || first.index - second.index;
+        }
 
         const firstAlways = getAlwaysFirstOrder(first.member);
         const secondAlways = getAlwaysFirstOrder(second.member);
@@ -207,6 +293,10 @@
         return first.index - second.index;
       })
       .map(({ member }) => member);
+  }
+
+  function hasNumericOrder(value) {
+    return value !== "" && value !== null && value !== undefined && Number.isFinite(Number(value));
   }
 
   function extractDriveFileId(value) {
@@ -260,21 +350,25 @@
   }
 
   function updateCategoryForm() {
-    const photographer = elements.profileCategory.value === "photographers";
+    const simpleProfile = isSimpleCategory(elements.profileCategory.value);
     elements.profileForm.querySelectorAll(".cast-detail-field").forEach((field) => {
-      field.hidden = photographer;
+      field.hidden = simpleProfile;
     });
     if (isNewProfile) {
-      elements.editorTitle.textContent = photographer ? "إضافة مصور" : "إضافة كاست";
+      elements.editorTitle.textContent = simpleProfile ? "إضافة ملف" : "إضافة كاست";
     }
   }
 
-  function createProfileRow(member) {
-    const row = document.createElement("button");
-    row.type = "button";
+  function createProfileRow(member, canSort) {
+    const row = document.createElement("div");
     row.className = "profile-row";
     row.dataset.profileId = member.id;
     row.classList.toggle("is-selected", member.id === selectedId);
+
+    const openButton = document.createElement("button");
+    openButton.type = "button";
+    openButton.className = "profile-row__open";
+    openButton.setAttribute("aria-label", `تعديل ${member.name}`);
 
     const imageUrl = getDisplayPhotoUrl(member.photoUrl);
     if (imageUrl) {
@@ -282,12 +376,12 @@
       image.src = imageUrl;
       image.alt = "";
       image.loading = "lazy";
-      row.append(image);
+      openButton.append(image);
     } else {
       const placeholder = document.createElement("span");
       placeholder.className = "profile-row-placeholder";
       placeholder.innerHTML = '<i data-lucide="user-round" aria-hidden="true"></i>';
-      row.append(placeholder);
+      openButton.append(placeholder);
     }
 
     const copy = document.createElement("span");
@@ -299,7 +393,7 @@
 
     const category = document.createElement("span");
     category.className = "profile-row-category";
-    category.textContent = categories[member.category] || member.category;
+    category.textContent = getCategoryLabel(member.category);
 
     copy.append(name, category);
 
@@ -308,24 +402,67 @@
     state.className = `profile-state${complete ? " is-complete" : ""}`;
     state.textContent = complete ? "مكتمل" : "ناقص";
 
-    row.append(copy, state);
-    row.addEventListener("click", () => selectProfile(member.id));
+    const dragHandle = document.createElement("button");
+    dragHandle.type = "button";
+    dragHandle.className = "profile-drag-handle";
+    dragHandle.disabled = !canSort;
+    dragHandle.title = canSort ? "اسحب لتغيير الترتيب" : "اختر قسمًا واحدًا وامسح البحث لتفعيل الترتيب";
+    dragHandle.setAttribute("aria-label", `تغيير ترتيب ${member.name}`);
+    dragHandle.innerHTML = '<i data-lucide="grip-vertical" aria-hidden="true"></i>';
+
+    openButton.append(copy, state);
+    openButton.addEventListener("click", () => selectProfile(member.id));
+    row.append(openButton, dragHandle);
     return row;
+  }
+
+  function initializeProfileSorting(canSort) {
+    if (profileSortable) {
+      profileSortable.destroy();
+      profileSortable = null;
+    }
+    if (!canSort || !window.Sortable) return;
+
+    profileSortable = window.Sortable.create(elements.profilesList, {
+      animation: 170,
+      direction: "vertical",
+      handle: ".profile-drag-handle",
+      forceFallback: true,
+      fallbackTolerance: 3,
+      ghostClass: "sortable-ghost",
+      chosenClass: "sortable-chosen",
+      onEnd: () => {
+        const categoryKey = elements.categoryFilter.value;
+        const orderedIds = [...elements.profilesList.children]
+          .map((row) => row.dataset.profileId)
+          .filter(Boolean);
+        orderedIds.forEach((id, index) => {
+          const member = members.find((item) => item.id === id && item.category === categoryKey);
+          if (member) member.displayOrder = index + 1;
+        });
+        markDataDirty("تم حفظ الترتيب كمسودة");
+        renderProfiles();
+        showToast("تم ترتيب البروفايلات. اضغط نشر التغييرات", "success");
+      },
+    });
   }
 
   function renderProfiles() {
     const query = elements.profileSearch.value.trim().toLocaleLowerCase("ar");
     const category = elements.categoryFilter.value;
+    const canSort = category !== "all" && !query;
     const filtered = getDisplayOrderedMembers(members).filter((member) => {
       const matchesCategory = category === "all" || member.category === category;
       const matchesQuery = !query || member.name.toLocaleLowerCase("ar").includes(query);
       return matchesCategory && matchesQuery;
     });
 
-    elements.profilesList.replaceChildren(...filtered.map(createProfileRow));
+    elements.profilesList.replaceChildren(...filtered.map((member) => createProfileRow(member, canSort)));
+    elements.profilesList.classList.toggle("is-sortable", canSort);
     elements.emptyList.hidden = filtered.length > 0;
     elements.profilesCount.textContent = `${filtered.length} ملف`;
     initializeIcons();
+    initializeProfileSorting(canSort);
   }
 
   function showEditor() {
@@ -354,7 +491,7 @@
   function fillForm(member) {
     resetValidation();
     elements.profileName.value = member.name || "";
-    elements.profileCategory.value = member.category || "men";
+    elements.profileCategory.value = member.category || categoryDefinitions[0]?.key || "";
     elements.profileFolder.value = member.folderUrl || "";
     elements.profilePhoto.value = member.photoUrl || "";
     elements.profileAge.value = member.age || "";
@@ -397,7 +534,11 @@
     elements.editorMode.textContent = "بروفايل جديد";
     elements.editorTitle.textContent = "إضافة كاست";
     elements.deleteProfile.hidden = true;
-    fillForm({ category: elements.categoryFilter.value === "all" ? "men" : elements.categoryFilter.value });
+    fillForm({
+      category: elements.categoryFilter.value === "all"
+        ? categoryDefinitions[0]?.key || ""
+        : elements.categoryFilter.value,
+    });
     showEditor();
     renderProfiles();
     elements.profileName.focus();
@@ -435,6 +576,17 @@
     }, 0) + 1;
   }
 
+  function categoryUsesManualOrder(categoryKey) {
+    return members.some((member) => member.category === categoryKey && hasNumericOrder(member.displayOrder));
+  }
+
+  function getNextDisplayOrder(categoryKey) {
+    return members.reduce((highest, member) => {
+      if (member.category !== categoryKey || !hasNumericOrder(member.displayOrder)) return highest;
+      return Math.max(highest, Number(member.displayOrder));
+    }, 0) + 1;
+  }
+
   function validateProfile(profile) {
     resetValidation();
     const required = [
@@ -467,14 +619,18 @@
 
   function saveProfile(event) {
     event.preventDefault();
+    const previousProfile = selectedId ? members.find((member) => member.id === selectedId) : null;
     const profile = readFormValues(true);
     if (!validateProfile(profile)) return;
 
     if (isNewProfile) {
       profile.id = createProfileId();
       profile.imageTitle = "صورة البروفايل";
-      if (profile.category !== "photographers" && isComplete(profile)) {
+      if (!isSimpleCategory(profile.category) && isComplete(profile)) {
         profile.completedOrder = getNextCompletionOrder();
+      }
+      if (categoryUsesManualOrder(profile.category)) {
+        profile.displayOrder = getNextDisplayOrder(profile.category);
       }
       members.push(profile);
       selectedId = profile.id;
@@ -482,12 +638,14 @@
     } else {
       const index = members.findIndex((member) => member.id === selectedId);
       if (index < 0) return;
-      if (
-        profile.category !== "photographers"
-        && isComplete(profile)
-        && !Number.isFinite(Number(profile.completedOrder))
-      ) {
+      if (!isSimpleCategory(profile.category) && isComplete(profile) && !hasNumericOrder(profile.completedOrder)) {
         profile.completedOrder = getNextCompletionOrder();
+      }
+      if (previousProfile && previousProfile.category !== profile.category) {
+        delete profile.displayOrder;
+        if (categoryUsesManualOrder(profile.category)) {
+          profile.displayOrder = getNextDisplayOrder(profile.category);
+        }
       }
       members[index] = profile;
     }
@@ -542,14 +700,221 @@
   }
 
   function serializePhotographers(sourceMembers) {
-    const photographerKeys = ["id", "name", "folderUrl", "photoUrl"];
+    const photographerKeys = ["id", "name", "folderUrl", "photoUrl", "displayOrder"];
     const blocks = sourceMembers.map((member) => {
-      const lines = photographerKeys.map(
-        (key) => `    ${serializeKey(key)}: ${serializeValue(member[key] || "")},`,
-      );
+      const lines = photographerKeys
+        .filter((key) => Object.prototype.hasOwnProperty.call(member, key))
+        .map((key) => `    ${serializeKey(key)}: ${serializeValue(member[key])},`);
       return `  {\n${lines.join("\n")}\n  }`;
     });
     return `window.photographers = [\n${blocks.join(",\n")}\n];\n`;
+  }
+
+  function serializeCategories(sourceCategories) {
+    const categoryKeys = [
+      "key",
+      "label",
+      "group",
+      "href",
+      "source",
+      "profileType",
+      "selectable",
+      "colors",
+    ];
+    const blocks = sourceCategories.map((category) => {
+      const lines = categoryKeys
+        .filter((key) => Object.prototype.hasOwnProperty.call(category, key))
+        .map((key) => `    ${serializeKey(key)}: ${serializeValue(category[key])},`);
+      return `  {\n${lines.join("\n")}\n  }`;
+    });
+    return `window.castCategories = [\n${blocks.join(",\n")}\n];\n`;
+  }
+
+  function updateCategoryPreview(row, category) {
+    const preview = row.querySelector(".category-preview");
+    preview.textContent = category.label || "قسم جديد";
+    preview.style.setProperty("--preview-start", category.colors.start);
+    preview.style.setProperty("--preview-end", category.colors.end);
+    preview.style.setProperty("--preview-border", category.colors.border);
+    preview.style.setProperty("--preview-text", category.colors.text);
+  }
+
+  function createColorControl(category, key, label, row) {
+    const control = document.createElement("label");
+    const caption = document.createElement("span");
+    const input = document.createElement("input");
+    control.className = "color-control";
+    caption.textContent = label;
+    input.type = "color";
+    input.value = category.colors[key];
+    input.dataset.colorKey = key;
+    input.addEventListener("input", () => {
+      category.colors[key] = input.value;
+      updateCategoryPreview(row, category);
+    });
+    control.append(caption, input);
+    return control;
+  }
+
+  function createCategoryEditorRow(category) {
+    const row = document.createElement("div");
+    row.className = "category-editor-row";
+    row.dataset.categoryKey = category.key;
+
+    const dragHandle = document.createElement("button");
+    dragHandle.type = "button";
+    dragHandle.className = "category-drag-handle";
+    dragHandle.setAttribute("aria-label", `تغيير ترتيب قسم ${category.label}`);
+    dragHandle.title = "اسحب لتغيير ترتيب القسم";
+    dragHandle.innerHTML = '<i data-lucide="grip-vertical" aria-hidden="true"></i>';
+
+    const preview = document.createElement("div");
+    preview.className = "category-preview";
+
+    const nameField = document.createElement("label");
+    nameField.className = "category-name-field";
+    const nameCaption = document.createElement("span");
+    const nameInput = document.createElement("input");
+    nameCaption.textContent = "اسم القسم";
+    nameInput.type = "text";
+    nameInput.value = category.label;
+    nameInput.required = true;
+    nameInput.addEventListener("input", () => {
+      const previousLabel = category.label;
+      const nextLabel = nameInput.value.trimStart();
+      category.label = nextLabel;
+      if (category.group === previousLabel) category.group = nextLabel;
+      updateCategoryPreview(row, category);
+    });
+    nameField.append(nameCaption, nameInput);
+
+    const typeField = document.createElement("label");
+    typeField.className = "category-type-field";
+    const typeCaption = document.createElement("span");
+    const typeSelect = document.createElement("select");
+    typeCaption.textContent = "نوع البروفايل";
+    typeSelect.append(
+      new Option("كاست ببيانات كاملة", "full"),
+      new Option("ملف بسيط بالاسم والصورة", "simple"),
+    );
+    typeSelect.value = category.profileType;
+    typeSelect.disabled = category.source === "photographers";
+    typeSelect.addEventListener("change", () => {
+      category.profileType = typeSelect.value;
+    });
+    typeField.append(typeCaption, typeSelect);
+
+    const colors = document.createElement("div");
+    colors.className = "category-colors";
+    const colorsCaption = document.createElement("span");
+    colorsCaption.textContent = "ألوان البلوك والبطاقات";
+    colors.append(
+      colorsCaption,
+      createColorControl(category, "start", "البداية", row),
+      createColorControl(category, "end", "النهاية", row),
+      createColorControl(category, "border", "الإطار", row),
+      createColorControl(category, "text", "النص", row),
+    );
+
+    const removeButton = document.createElement("button");
+    const hasProfiles = members.some((member) => member.category === category.key);
+    const protectedCategory = protectedCategoryKeys.has(category.key);
+    removeButton.type = "button";
+    removeButton.className = "icon-button category-delete";
+    removeButton.disabled = protectedCategory || hasProfiles;
+    removeButton.title = protectedCategory
+      ? "يمكن تعديل هذا القسم وترتيبه ولا يمكن حذفه"
+      : hasProfiles
+        ? "انقل بروفايلات القسم قبل حذفه"
+        : "حذف القسم";
+    removeButton.setAttribute("aria-label", `حذف قسم ${category.label}`);
+    removeButton.innerHTML = '<i data-lucide="trash-2" aria-hidden="true"></i>';
+    removeButton.addEventListener("click", () => {
+      categoryDraft = categoryDraft.filter((item) => item.key !== category.key);
+      renderCategoryEditor();
+    });
+
+    row.append(dragHandle, preview, nameField, typeField, colors, removeButton);
+    updateCategoryPreview(row, category);
+    return row;
+  }
+
+  function initializeCategorySorting() {
+    if (categorySortable) {
+      categorySortable.destroy();
+      categorySortable = null;
+    }
+    if (!window.Sortable) return;
+    categorySortable = window.Sortable.create(elements.categoriesList, {
+      animation: 170,
+      direction: "vertical",
+      handle: ".category-drag-handle",
+      forceFallback: true,
+      fallbackTolerance: 3,
+      ghostClass: "sortable-ghost",
+      chosenClass: "sortable-chosen",
+      onEnd: () => {
+        const order = [...elements.categoriesList.children].map((row) => row.dataset.categoryKey);
+        categoryDraft.sort((first, second) => order.indexOf(first.key) - order.indexOf(second.key));
+      },
+    });
+  }
+
+  function renderCategoryEditor() {
+    elements.categoriesList.replaceChildren(...categoryDraft.map(createCategoryEditorRow));
+    initializeIcons();
+    initializeCategorySorting();
+  }
+
+  function openCategoryManager() {
+    categoryDraft = cloneMembers(categoryDefinitions);
+    elements.categoriesError.hidden = true;
+    elements.categoriesError.textContent = "";
+    renderCategoryEditor();
+    elements.categoriesDialog.showModal();
+  }
+
+  function addCategoryDraft() {
+    const key = `section-${Date.now().toString(36)}`;
+    categoryDraft.push({
+      key,
+      label: "قسم جديد",
+      group: "قسم جديد",
+      href: `cast-category.html?category=${encodeURIComponent(key)}`,
+      source: "cast",
+      profileType: "full",
+      selectable: true,
+      colors: { ...defaultCategoryColors },
+    });
+    renderCategoryEditor();
+    elements.categoriesList.lastElementChild?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function saveCategorySettings(event) {
+    event.preventDefault();
+    const labels = categoryDraft.map((category) => category.label.trim());
+    if (labels.some((label) => !label)) {
+      elements.categoriesError.textContent = "اكتب اسمًا لكل قسم";
+      elements.categoriesError.hidden = false;
+      return;
+    }
+    if (new Set(labels).size !== labels.length) {
+      elements.categoriesError.textContent = "أسماء الأقسام يجب أن تكون مختلفة";
+      elements.categoriesError.hidden = false;
+      return;
+    }
+
+    categoryDraft.forEach((category) => {
+      category.label = category.label.trim();
+      if (!category.group || category.group === "قسم جديد") category.group = category.label;
+    });
+    categoryDefinitions = normalizeCategoryDefinitions(cloneMembers(categoryDraft));
+    syncCategoryOptions();
+    if (selectedId) fillForm(members.find((member) => member.id === selectedId) || {});
+    renderProfiles();
+    elements.categoriesDialog.close();
+    markDataDirty("تم حفظ الأقسام كمسودة");
+    showToast("تم حفظ الأقسام والألوان. اضغط نشر التغييرات", "success");
   }
 
   function encodeBase64Utf8(value) {
@@ -633,15 +998,28 @@
     setBusy(true);
     setSyncStatus("جاري تحميل البيانات");
     try {
-      [baseDataSource, basePhotographersSource] = await Promise.all([
+      [baseDataSource, basePhotographersSource, baseCategoriesSource] = await Promise.all([
         fetchGithubRaw("cast-data.js"),
         fetchGithubRaw("photographers-data.js"),
+        fetchGithubRaw("cast-categories.js").catch((error) => {
+          if (Array.isArray(window.castCategories) && window.castCategories.length) {
+            return serializeCategories(normalizeCategoryDefinitions(window.castCategories));
+          }
+          throw error;
+        }),
       ]);
       await loadSourceIntoWindow(baseDataSource);
       await loadSourceIntoWindow(basePhotographersSource);
-      if (!Array.isArray(window.castMembers) || !Array.isArray(window.photographers)) {
+      await loadSourceIntoWindow(baseCategoriesSource);
+      if (
+        !Array.isArray(window.castMembers)
+        || !Array.isArray(window.photographers)
+        || !Array.isArray(window.castCategories)
+      ) {
         throw new Error("ملفات بيانات البروفايلات غير صالحة");
       }
+      categoryDefinitions = normalizeCategoryDefinitions(cloneMembers(window.castCategories));
+      syncCategoryOptions();
       members = [
         ...cloneMembers(window.castMembers),
         ...cloneMembers(window.photographers).map((member) => ({ ...member, category: "photographers" })),
@@ -717,7 +1095,7 @@
 
   function updateAssetVersion(html, version) {
     return html.replace(
-      /(cast-styles\.css|cast-data\.js|cast\.js)\?v=[^"']+/g,
+      /(cast-styles\.css|cast-categories\.js|cast-data\.js|photographers-data\.js|cast\.js)\?v=[^"']+/g,
       `$1?v=${version}`,
     );
   }
@@ -733,18 +1111,29 @@
     );
   }
 
-  async function waitForPublicData(expectedSource, expectedPhotographersSource, commitSha) {
+  async function waitForPublicData(
+    expectedSource,
+    expectedPhotographersSource,
+    expectedCategoriesSource,
+    commitSha,
+  ) {
     for (let attempt = 0; attempt < 30; attempt += 1) {
       try {
-        const [castResponse, photographersResponse] = await Promise.all([
+        const [castResponse, photographersResponse, categoriesResponse] = await Promise.all([
           fetch(`cast-data.js?admin=${commitSha}-${attempt}`, { cache: "no-store" }),
           fetch(`photographers-data.js?admin=${commitSha}-${attempt}`, { cache: "no-store" }),
+          fetch(`cast-categories.js?admin=${commitSha}-${attempt}`, { cache: "no-store" }),
         ]);
-        const [source, photographersSource] = await Promise.all([
+        const [source, photographersSource, categoriesSource] = await Promise.all([
           castResponse.text(),
           photographersResponse.text(),
+          categoriesResponse.text(),
         ]);
-        if (source === expectedSource && photographersSource === expectedPhotographersSource) {
+        if (
+          source === expectedSource
+          && photographersSource === expectedPhotographersSource
+          && categoriesSource === expectedCategoriesSource
+        ) {
           return true;
         }
       } catch (error) {
@@ -769,18 +1158,31 @@
     setBusy(true);
     setSyncStatus("جاري تجهيز النشر");
     try {
-      const [remoteDataSource, remotePhotographersSource] = await Promise.all([
+      const [remoteDataSource, remotePhotographersSource, remoteCategoriesSource] = await Promise.all([
         fetchGithubRaw("cast-data.js"),
         fetchGithubRaw("photographers-data.js"),
+        fetchGithubRaw("cast-categories.js"),
       ]);
-      if (remoteDataSource !== baseDataSource || remotePhotographersSource !== basePhotographersSource) {
+      if (
+        remoteDataSource !== baseDataSource
+        || remotePhotographersSource !== basePhotographersSource
+        || remoteCategoriesSource !== baseCategoriesSource
+      ) {
         throw new Error("تغيرت بيانات الموقع منذ فتح اللوحة. اضغط تحديث البيانات ثم أعد تعديلك");
       }
 
-      const nextDataSource = serializeMembers(members.filter((member) => member.category !== "photographers"));
-      const nextPhotographersSource = serializePhotographers(
-        members.filter((member) => member.category === "photographers"),
+      const photographerCategoryKeys = new Set(
+        categoryDefinitions
+          .filter((category) => category.source === "photographers")
+          .map((category) => category.key),
       );
+      const nextDataSource = serializeMembers(
+        members.filter((member) => !photographerCategoryKeys.has(member.category)),
+      );
+      const nextPhotographersSource = serializePhotographers(
+        members.filter((member) => photographerCategoryKeys.has(member.category)),
+      );
+      const nextCategoriesSource = serializeCategories(categoryDefinitions);
       const version = createVersion();
       const ref = await githubRequest(
         `/repos/${repository.owner}/${repository.name}/git/ref/heads/${repository.branch}`,
@@ -799,7 +1201,7 @@
         photographerPagePaths.map(async (path) => ({
           path,
           content: (await fetchGithubRaw(path)).replace(
-            /(cast-styles\.css|photographers-data\.js|photographers\.js)\?v=[^"']+/g,
+            /(cast-styles\.css|cast-categories\.js|photographers-data\.js|photographers\.js)\?v=[^"']+/g,
             `$1?v=${version}`,
           ),
         })),
@@ -809,6 +1211,7 @@
       const files = [
         { path: "cast-data.js", content: nextDataSource },
         { path: "photographers-data.js", content: nextPhotographersSource },
+        { path: "cast-categories.js", content: nextCategoriesSource },
         ...htmlSources,
         ...photographerHtmlSources,
       ];
@@ -856,10 +1259,16 @@
 
       baseDataSource = nextDataSource;
       basePhotographersSource = nextPhotographersSource;
+      baseCategoriesSource = nextCategoriesSource;
       dataDirty = false;
       elements.publishChanges.disabled = true;
       setSyncStatus("جاري نشر الموقع");
-      const deployed = await waitForPublicData(nextDataSource, nextPhotographersSource, commit.sha);
+      const deployed = await waitForPublicData(
+        nextDataSource,
+        nextPhotographersSource,
+        nextCategoriesSource,
+        commit.sha,
+      );
       if (deployed) {
         setSyncStatus("تم النشر بنجاح", "success");
         showToast("تم نشر التغييرات على الموقع", "success");
@@ -890,6 +1299,11 @@
   elements.profileSearch.addEventListener("input", renderProfiles);
   elements.categoryFilter.addEventListener("change", renderProfiles);
   elements.addProfile.addEventListener("click", startNewProfile);
+  elements.manageCategories.addEventListener("click", openCategoryManager);
+  elements.categoriesForm.addEventListener("submit", saveCategorySettings);
+  elements.addCategory.addEventListener("click", addCategoryDraft);
+  elements.closeCategoriesDialog.addEventListener("click", () => elements.categoriesDialog.close());
+  elements.cancelCategories.addEventListener("click", () => elements.categoriesDialog.close());
   elements.emptyAddProfile.addEventListener("click", startNewProfile);
   elements.profileForm.addEventListener("submit", saveProfile);
   elements.profileForm.addEventListener("input", handleFormInput);

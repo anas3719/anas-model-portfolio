@@ -12,7 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="cast-admin.css?v=20260808-1" />
+    <link rel="stylesheet" href="cast-admin.css?v=20260808-3" />
   </head>
   <body>
     <header class="admin-header">
@@ -71,10 +71,16 @@
             <h2>البروفايلات</h2>
             <span id="profiles-count" class="profiles-count">0 ملف</span>
           </div>
-          <button id="add-profile" class="button button-add" type="button">
-            <i data-lucide="user-plus" aria-hidden="true"></i>
-            <span>إضافة بروفايل</span>
-          </button>
+          <div class="directory-actions">
+            <button id="manage-categories" class="button button-secondary" type="button">
+              <i data-lucide="palette" aria-hidden="true"></i>
+              <span>إدارة الأقسام</span>
+            </button>
+            <button id="add-profile" class="button button-add" type="button">
+              <i data-lucide="user-plus" aria-hidden="true"></i>
+              <span>إضافة بروفايل</span>
+            </button>
+          </div>
         </div>
 
         <div id="profiles-list" class="profiles-list"></div>
@@ -256,9 +262,42 @@
       </div>
     </dialog>
 
+    <dialog id="categories-dialog" class="admin-dialog categories-dialog">
+      <form id="categories-form" method="dialog">
+        <div class="dialog-heading">
+          <div>
+            <h2>إدارة الأقسام والألوان</h2>
+            <p>رتب الأقسام وأضف قسمًا جديدًا وحدد ألوان ظهوره في الموقع.</p>
+          </div>
+          <button id="close-categories-dialog" class="icon-button" type="button" aria-label="إغلاق">
+            <i data-lucide="x" aria-hidden="true"></i>
+          </button>
+        </div>
+
+        <div id="categories-list" class="categories-editor-list"></div>
+
+        <button id="add-category" class="button button-add" type="button">
+          <i data-lucide="plus" aria-hidden="true"></i>
+          <span>إضافة قسم</span>
+        </button>
+
+        <div id="categories-error" class="dialog-error" role="alert" hidden></div>
+
+        <div class="dialog-actions">
+          <button id="cancel-categories" class="button button-ghost" type="button">إلغاء</button>
+          <button class="button button-primary" type="submit">
+            <i data-lucide="save" aria-hidden="true"></i>
+            <span>حفظ الأقسام</span>
+          </button>
+        </div>
+      </form>
+    </dialog>
+
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
     <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
-    <script src="cast-admin.js?v=20260808-1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+    <script src="cast-categories.js?v=20260808-3"></script>
+    <script src="cast-admin.js?v=20260808-3"></script>
   </body>
 </html>
