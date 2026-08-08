@@ -1,4 +1,4 @@
-﻿window.castMembers = [
+window.castMembers = [
   {
     id: "anas-omar",
     name: "انس عمر",
@@ -981,7 +981,5 @@
     nationality: "",
     speaking: "متحدث",
     note: "",
-  },
+  }
 ];
-
-

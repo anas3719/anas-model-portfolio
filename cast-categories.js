@@ -7,12 +7,7 @@ window.castCategories = [
     source: "cast",
     profileType: "full",
     selectable: true,
-    colors: {
-      start: "#17313a",
-      end: "#111427",
-      border: "#19f6ff",
-      text: "#f4f7ff",
-    },
+    colors: {"start":"#17313a","end":"#111427","border":"#19f6ff","text":"#f4f7ff"},
   },
   {
     key: "women",
@@ -22,12 +17,7 @@ window.castCategories = [
     source: "cast",
     profileType: "full",
     selectable: true,
-    colors: {
-      start: "#17313a",
-      end: "#111427",
-      border: "#19f6ff",
-      text: "#f4f7ff",
-    },
+    colors: {"start":"#17313a","end":"#111427","border":"#19f6ff","text":"#f4f7ff"},
   },
   {
     key: "boys",
@@ -37,12 +27,7 @@ window.castCategories = [
     source: "cast",
     profileType: "full",
     selectable: true,
-    colors: {
-      start: "#17313a",
-      end: "#111427",
-      border: "#19f6ff",
-      text: "#f4f7ff",
-    },
+    colors: {"start":"#17313a","end":"#111427","border":"#19f6ff","text":"#f4f7ff"},
   },
   {
     key: "girls",
@@ -52,12 +37,7 @@ window.castCategories = [
     source: "cast",
     profileType: "full",
     selectable: true,
-    colors: {
-      start: "#17313a",
-      end: "#111427",
-      border: "#19f6ff",
-      text: "#f4f7ff",
-    },
+    colors: {"start":"#17313a","end":"#111427","border":"#19f6ff","text":"#f4f7ff"},
   },
   {
     key: "seniorMen",
@@ -67,12 +47,7 @@ window.castCategories = [
     source: "cast",
     profileType: "full",
     selectable: true,
-    colors: {
-      start: "#17313a",
-      end: "#111427",
-      border: "#19f6ff",
-      text: "#f4f7ff",
-    },
+    colors: {"start":"#17313a","end":"#111427","border":"#19f6ff","text":"#f4f7ff"},
   },
   {
     key: "seniorWomen",
@@ -82,12 +57,7 @@ window.castCategories = [
     source: "cast",
     profileType: "full",
     selectable: true,
-    colors: {
-      start: "#17313a",
-      end: "#111427",
-      border: "#19f6ff",
-      text: "#f4f7ff",
-    },
+    colors: {"start":"#17313a","end":"#111427","border":"#19f6ff","text":"#f4f7ff"},
   },
   {
     key: "photographers",
@@ -97,11 +67,16 @@ window.castCategories = [
     source: "photographers",
     profileType: "simple",
     selectable: false,
-    colors: {
-      start: "#4a3820",
-      end: "#251326",
-      border: "#ffce60",
-      text: "#fff8e8",
-    },
+    colors: {"start":"#4a3820","end":"#251326","border":"#ffce60","text":"#fff8e8"},
   },
+  {
+    key: "section-mska721r",
+    label: "فويس أوفر",
+    group: "فويس أوفر",
+    href: "cast-category.html?category=section-mska721r",
+    source: "cast",
+    profileType: "simple",
+    selectable: true,
+    colors: {"start":"#4a3820","end":"#251326","border":"#ffce60","text":"#fff8e8"},
+  }
 ];
