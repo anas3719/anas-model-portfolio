@@ -981,5 +981,20 @@ window.castMembers = [
     nationality: "",
     speaking: "متحدث",
     note: "",
+  },
+  {
+    id: "mohammed-adel",
+    name: "محمد عادل",
+    category: "men",
+    folderUrl: "https://drive.google.com/drive/folders/18k7nPGd0GEeo52PhWW_zqyeQ-7ztm5Q-",
+    photoUrl: "https://drive.google.com/thumbnail?id=1p32MWber_JRLmj2u-9O0TMTTGks9JJDB&sz=w1000",
+    imageTitle: "IMG-20260816-WA0032.jpg",
+    age: "26",
+    height: "185",
+    weight: "80",
+    nationality: "اردني",
+    speaking: "متحدث",
+    completedOrder: 27,
+    note: "",
   }
 ];
