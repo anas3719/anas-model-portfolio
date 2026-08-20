@@ -3,7 +3,7 @@
 
   const repository = {
     owner: "anas3719",
-    name: "anas-model-portfolio",
+    name: "anas3719.github.io",
     branch: "main",
   };
 
