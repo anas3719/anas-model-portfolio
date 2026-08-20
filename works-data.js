@@ -113,6 +113,12 @@ window.portfolioWorks = {
       "url": "https://drive.google.com/file/d/1iGIKLCY-gb0F5ZyIe-MhzFQ5IcLuUPfI/view"
     },
     {
+      "brand": "عسل الملوك",
+      "type": "video",
+      "preview": "https://drive.google.com/file/d/1FH_wRk9pnY12Ez_Td0Y4yIcY4_eBzlqF/preview",
+      "url": "https://drive.google.com/file/d/1FH_wRk9pnY12Ez_Td0Y4yIcY4_eBzlqF/view"
+    },
+    {
       "brand": "الذيب للاقمشة الرجالية",
       "type": "folder",
       "url": "https://drive.google.com/drive/folders/1ACj6mOh1ld2ELFWjzFYtjnf4-KuVWSyx"
